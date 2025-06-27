@@ -1,2 +1,0 @@
-# portfolio
-sjkor portfolio
