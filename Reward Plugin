@@ -1,0 +1,123 @@
+/*
+ * Plugin "nagroda"
+ * Autor sjkorr
+ */
+package com.yournick.rewardplugin;
+
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.*;
+import java.util.logging.Level;
+
+public class RewardPlugin extends JavaPlugin implements CommandExecutor {
+    private FileConfiguration cfg;
+    private Map<UUID, Long> lastUse;
+
+    @Override
+    public void onEnable() {
+        saveDefaultConfig();
+        cfg = getConfig();
+        lastUse = new HashMap<>();
+        loadPlayerData();
+        getCommand("nagroda").setExecutor(this);  // Zmieniono komendę na /nagroda
+        getLogger().log(Level.INFO, "RewardPlugin enabled");
+    }
+
+    @Override
+    public void onDisable() {
+        savePlayerData();
+        getLogger().log(Level.INFO, "RewardPlugin disabled");
+    }
+
+    private void loadPlayerData() {
+        if (cfg.isConfigurationSection("players")) {
+            ConfigurationSection ps = cfg.getConfigurationSection("players");
+            for (String uid : ps.getKeys(false)) {
+                long ts = ps.getLong(uid);
+                try {
+                    lastUse.put(UUID.fromString(uid), ts);
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+    }
+
+    private void savePlayerData() {
+        cfg.set("players", null);
+        for (Map.Entry<UUID, Long> e : lastUse.entrySet()) {
+            cfg.set("players." + e.getKey().toString(), e.getValue());
+        }
+        saveConfig();
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + cfg.getString("messages.onlyPlayers", "Komenda dostępna tylko dla graczy"));
+            return true;
+        }
+        Player p = (Player) sender;
+        UUID id = p.getUniqueId();
+        long now = System.currentTimeMillis();
+        long cooldown = cfg.getLong("settings.cooldownMs", 24L * 60 * 60 * 1000);
+        long last = lastUse.getOrDefault(id, 0L);
+        if (now - last < cooldown) {
+            long secondsLeft = (cooldown - (now - last)) / 1000;
+            String time = formatTime(secondsLeft);
+            p.sendMessage(ChatColor.RED + "Musisz jeszcze poczekać " + time + "!");
+            return true;
+        }
+
+        ConfigurationSection rewards = cfg.getConfigurationSection("rewards");
+        if (rewards == null || rewards.getKeys(false).isEmpty()) {
+            p.sendMessage(ChatColor.RED + cfg.getString("messages.noRewards", "Brak skonfigurowanych nagród"));
+            return true;
+        }
+
+        List<String> keys = new ArrayList<>(rewards.getKeys(false));
+        Collections.shuffle(keys);
+        String pick = keys.get(0);
+        String cmdLine = rewards.getString(pick + ".command");
+        if (cmdLine == null) {
+            p.sendMessage(ChatColor.RED + cfg.getString("messages.error", "Wystąpił błąd"));
+            return true;
+        }
+
+        String formatted = cmdLine.replace("%player%", p.getName());
+        ConsoleCommandSender ccs = Bukkit.getServer().getConsoleSender();
+        Bukkit.dispatchCommand(ccs, formatted);
+        p.sendMessage(ChatColor.GREEN + "Odebrałeś swoją nagrodę: " + pick + "!");
+
+        lastUse.put(id, now);
+        savePlayerData();
+        return true;
+    }
+
+    /**
+     * Formatuje czas z sekund na H:M:S lub M:S
+     */
+    private String formatTime(long totalSeconds) {
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+        if (hours > 0) {
+            return String.format("%dh %02dm %02ds", hours, minutes, seconds);
+        } else {
+            return String.format("%dm %02ds", minutes, seconds);
+        }
+    }
+}
+
+// Pamiętaj też zmienić plugin.yml:
+// commands:
+//   nagroda:
+//     description: Odbierz codzienną nagrodę
+//     usage: /<command>
