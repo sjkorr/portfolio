@@ -101,9 +101,7 @@ public class RewardPlugin extends JavaPlugin implements CommandExecutor {
         return true;
     }
 
-    /**
-     * Formatuje czas z sekund na H:M:S lub M:S
-     */
+    
     private String formatTime(long totalSeconds) {
         long hours = totalSeconds / 3600;
         long minutes = (totalSeconds % 3600) / 60;
@@ -115,9 +113,3 @@ public class RewardPlugin extends JavaPlugin implements CommandExecutor {
         }
     }
 }
-
-// Pamiętaj też zmienić plugin.yml:
-// commands:
-//   nagroda:
-//     description: Odbierz codzienną nagrodę
-//     usage: /<command>
