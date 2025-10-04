@@ -1,0 +1,191 @@
+// odbioranie IR do arduinio uno 
+// pin 8
+// autor brabc
+
+#include <IRremote.h>
+#include <EEPROM.h>
+
+const uint8_t RECV_PIN = 8;    
+IRrecv irrecv(RECV_PIN);
+decode_results results;
+
+const uint16_t EEPROM_COUNT_ADDR = 0;    
+const uint16_t EEPROM_DATA_START = 2;   
+const bool SAVE_DUPLICATES = false;   
+
+uint32_t lastSaved = 0xFFFFFFFF;       
+
+uint16_t eepromReadUint16(uint16_t addr) {
+  uint16_t lo = EEPROM.read(addr);
+  uint16_t hi = EEPROM.read(addr + 1);
+  return (hi << 8) | lo;
+}
+
+void eepromWriteUint16(uint16_t addr, uint16_t value) {
+  EEPROM.update(addr, value & 0xFF);
+  EEPROM.update(addr + 1, (value >> 8) & 0xFF);
+}
+
+
+bool eepromWriteCodeAtIndex(uint16_t index, uint32_t code) {
+  uint16_t addr = EEPROM_DATA_START + index * 4;
+  uint16_t maxAddr = EEPROM.length();
+  if (addr + 3 >= maxAddr) return false;
+  EEPROM.update(addr + 0, (uint8_t)(code & 0xFF));
+  EEPROM.update(addr + 1, (uint8_t)((code >> 8) & 0xFF));
+  EEPROM.update(addr + 2, (uint8_t)((code >> 16) & 0xFF));
+  EEPROM.update(addr + 3, (uint8_t)((code >> 24) & 0xFF));
+  return true;
+}
+
+uint32_t eepromReadCodeAtIndex(uint16_t index) {
+  uint16_t addr = EEPROM_DATA_START + index * 4;
+  uint32_t b0 = EEPROM.read(addr + 0);
+  uint32_t b1 = EEPROM.read(addr + 1);
+  uint32_t b2 = EEPROM.read(addr + 2);
+  uint32_t b3 = EEPROM.read(addr + 3);
+  return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+}
+
+uint16_t eepromMaxCodes() {
+  if (EEPROM.length() <= EEPROM_DATA_START) return 0;
+  return (EEPROM.length() - EEPROM_DATA_START) / 4;
+}
+
+
+void listSavedCodes() {
+  uint16_t count = eepromReadUint16(EEPROM_COUNT_ADDR);
+  Serial.print("Zapisanych kodow: ");
+  Serial.println(count);
+  uint16_t maxC = eepromMaxCodes();
+  if (count > maxC) count = maxC;
+  for (uint16_t i = 0; i < count; ++i) {
+    uint32_t code = eepromReadCodeAtIndex(i);
+    Serial.print(i);
+    Serial.print(": 0x");
+    Serial.println(code, HEX);
+  }
+}
+
+void clearSavedCodes() {
+  eepromWriteUint16(EEPROM_COUNT_ADDR, 0);
+ 
+  Serial.println("EEPROM: lista skasowana (licznik ustawiony na 0).");
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {  }
+  Serial.println();
+  Serial.println("IR -> Serial + EEPROM recorder");
+  Serial.print("Receiver pin: ");
+  Serial.println(RECV_PIN);
+  irrecv.enableIRIn(); 
+
+  uint16_t count = eepromReadUint16(EEPROM_COUNT_ADDR);
+  Serial.print("W EEPROM zapisanych rekordow: ");
+  Serial.println(count);
+  Serial.print("Maksymalna ilosc kodow (zalezna od rozmiaru EEPROM): ");
+  Serial.println(eepromMaxCodes());
+  Serial.println("Komendy przez Serial: L = listuj, C = wyczysc");
+}
+
+void loop() {
+
+  if (Serial.available()) {
+    char c = Serial.read();
+    if (c == 'L' || c == 'l') {
+      listSavedCodes();
+    } else if (c == 'C' || c == 'c') {
+      clearSavedCodes();
+    }
+  }
+
+  if (irrecv.decode(&results)) {
+
+    uint32_t value = (uint32_t)results.value;
+
+    Serial.print("Odebrano: ");
+    Serial.print("val=0x");
+    Serial.print(value, HEX);
+    Serial.print("  bits=");
+    #ifdef RAW_BUFFER_SIZE
+
+    #endif
+
+    #if defined(DECODE_NEC) || defined(DECODE_RC5)
+
+    #endif
+
+    #ifdef _IRREMOTEDECODE_RESULTS_H_
+
+    #endif
+
+    #if defined(__SAM3X8E__) || defined(__AVR__)
+
+    #endif
+
+
+    #ifdef ESP8266
+
+    #endif
+
+
+
+    Serial.print("  bits=");
+    #if 1
+
+      Serial.print(results.bits);
+    #else
+      Serial.print("?");
+    #endif
+
+
+    Serial.print("  type=");
+    #if 1
+      #ifdef DECODE_TYPES
+        Serial.print(results.decode_type);
+      #else
+ 
+        Serial.print(results.decode_type);
+      #endif
+    #else
+      Serial.print("?");
+    #endif
+
+    Serial.println();
+
+    if (value == 0xFFFFFFFF) {
+      Serial.println(" -> Powtorzenie (REPEAT) - pomijam zapis.");
+      irrecv.resume();
+      return;
+    }
+
+    if (!SAVE_DUPLICATES && value == lastSaved) {
+      Serial.println(" -> Ten sam kod co ostatnio; pominięto zapis (SAVE_DUPLICATES=false).");
+      irrecv.resume();
+      return;
+    }
+
+
+    uint16_t count = eepromReadUint16(EEPROM_COUNT_ADDR);
+    uint16_t maxC = eepromMaxCodes();
+    if (count >= maxC) {
+      Serial.println("!!! EEPROM pelny - nie zapisano kodu.");
+    } else {
+      bool ok = eepromWriteCodeAtIndex(count, value);
+      if (ok) {
+        count++;
+        eepromWriteUint16(EEPROM_COUNT_ADDR, count);
+        lastSaved = value;
+        Serial.print("Zapisano do EEPROM, index=");
+        Serial.println(count - 1);
+      } else {
+        Serial.println("Blad zapisu do EEPROM.");
+      }
+    }
+
+    irrecv.resume(); // gotowe do nastepnego odbioru
+  }
+}
