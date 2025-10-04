@@ -1,11 +1,9 @@
-Discord: sjkor
+Discord: brabc
 
 mail: sjkorka@gmail.com
 
-create polish/english plugins 
-translating polish plugins into english 
-translating english plugins into polish
+JavaScript Dev
+Learning: Python, C++
+Arduino SPEC
 
-others languages 10%+ price
-
-/cheap/
+Poland
