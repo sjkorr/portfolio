@@ -1,0 +1,9 @@
+timeout_seconds: 300
+check_interval_seconds: 10
+kick_message: "&cZostałeś wyrzucony za bycie AFK przez {minutes} minut."
+bypass_permissions:
+  - "antiafk.bypass"
+exempt_ops: true
+exempt_worlds: []
+whitelist: []
+log_to_console: true
