@@ -1,0 +1,91 @@
+package com.example.antiafk;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.*;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class AntiAFKKickPlugin extends JavaPlugin implements Listener {
+    private final Map<UUID, Long> lastActive = new ConcurrentHashMap<>();
+    private long timeoutMillis = 5 * 60 * 1000L;
+    private long checkIntervalTicks = 20L * 10L;
+    private BukkitTask checkTask;
+
+    @Override
+    public void onEnable() {
+        getServer().getPluginManager().registerEvents(this, this);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            lastActive.put(p.getUniqueId(), System.currentTimeMillis());
+        }
+        checkTask = getServer().getScheduler().runTaskTimer(this, this::checkAfkPlayers, 20L, checkIntervalTicks);
+        getLogger().info("AntiAFKKickPlugin enabled. Timeout = " + (timeoutMillis / 1000) + "s");
+    }
+
+    @Override
+    public void onDisable() {
+        if (checkTask != null) checkTask.cancel();
+        lastActive.clear();
+        getLogger().info("AntiAFKKickPlugin disabled.");
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        updateActivity(e.getPlayer());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent e) {
+        lastActive.remove(e.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent e) {
+        if (e.getFrom().getBlockX() != e.getTo().getBlockX()
+                || e.getFrom().getBlockY() != e.getTo().getBlockY()
+                || e.getFrom().getBlockZ() != e.getTo().getBlockZ()) {
+            updateActivity(e.getPlayer());
+        }
+    }
+
+    @EventHandler
+    public void onInteract(PlayerInteractEvent e) {
+        updateActivity(e.getPlayer());
+    }
+
+    @EventHandler
+    public void onChat(AsyncPlayerChatEvent e) {
+        lastActive.put(e.getPlayer().getUniqueId(), System.currentTimeMillis());
+    }
+
+    @EventHandler
+    public void onCommand(PlayerCommandPreprocessEvent e) {
+        updateActivity(e.getPlayer());
+    }
+
+    private void updateActivity(Player p) {
+        lastActive.put(p.getUniqueId(), System.currentTimeMillis());
+    }
+
+    private void checkAfkPlayers() {
+        long now = System.currentTimeMillis();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p.hasPermission("antiafk.bypass") || p.isOp()) continue;
+            UUID id = p.getUniqueId();
+            long last = lastActive.getOrDefault(id, now);
+            long elapsed = now - last;
+            if (elapsed >= timeoutMillis) {
+                String reason = "Kicked for being AFK for 5 minutes.";
+                getLogger().info("Kicking AFK player " + p.getName() + " (elapsed " + (elapsed / 1000) + "s)");
+                p.kickPlayer(reason);
+                lastActive.remove(id);
+            }
+        }
+    }
+}
