@@ -1,9 +1,7 @@
 Discord: brabc
+--------------------------------
+JavaScript DEV
+C++
+Python
+Arduino
 
-mail: sjkorka@gmail.com
-
-JavaScript Dev
-Learning: Python, C++
-Arduino SPEC
-
-Poland
