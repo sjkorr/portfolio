@@ -1,6 +1,6 @@
 Discord: brabc
 --------------------------------
-JavaScript DEV
+JavaScript
 C++
 Python
 Arduino
